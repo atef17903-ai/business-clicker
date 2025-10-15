@@ -49,7 +49,7 @@
 
 1.  **Клонируйте репозиторий:**
     ```bash
-    git clone [https://github.com/your-username/clicker-game.git](https://github.com/your-username/clicker-game.git)
+    git clone [https://github.com/atef17903-ai/business-clicker.git](https://github.com/atef17903-ai/business-clicker.git)
     cd clicker-game
     ```
 
