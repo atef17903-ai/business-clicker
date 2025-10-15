@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Веб-Игра: Экономический Симулятор</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+        @keyframes shrink-width {
+            from { width: 100%; }
+            to { width: 0%; }
+        }
+        .progress-bar-animate {
+            animation: shrink-width 5s linear forwards;
+        }
+        .screen {
+            transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
+        }
+        .screen.hidden {
+            opacity: 0;
+            transform: scale(0.95);
+            pointer-events: none;
+            position: absolute;
+        }
+        .nav-button.active {
+            background-color: #4f46e5;
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white antialiased">
+
+    <!-- Контейнер для уведомлений -->
+    <div id="notification-container" class="fixed top-4 right-4 z-50 flex flex-col items-end space-y-3 w-full max-w-xs sm:max-w-sm"></div>
+
+    <!-- Экран загрузки -->
+    <div id="loading-screen" class="screen fixed inset-0 flex items-center justify-center bg-gray-900 z-50">
+        <div class="flex flex-col items-center">
+            <svg class="animate-spin h-10 w-10 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="mt-4 text-gray-400">Загрузка данных...</p>
+        </div>
+    </div>
+
+    <!-- Экран регистрации и входа -->
+    <div id="auth-screen" class="screen hidden fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-80 backdrop-blur-sm p-4">
+        <div class="w-full max-w-md p-6 sm:p-8 bg-gray-800 border border-gray-700 rounded-2xl shadow-2xl">
+            <h2 class="text-3xl font-bold text-center text-indigo-400 mb-2">Добро пожаловать</h2>
+            <p class="text-center text-gray-400 mb-8">Войдите или создайте аккаунт</p>
+            <form id="auth-form" onsubmit="return false;">
+                <div class="mb-4">
+                    <label for="username" class="block mb-2 text-sm font-medium text-gray-300">Имя пользователя</label>
+                    <input type="text" id="username" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5" required>
+                </div>
+                <div class="mb-6">
+                    <label for="password" class="block mb-2 text-sm font-medium text-gray-300">Пароль</label>
+                    <input type="password" id="password" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full p-2.5" required>
+                </div>
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <button type="button" id="login-btn" class="w-full text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:outline-none focus:ring-indigo-500 font-medium rounded-lg text-sm px-5 py-3 text-center transition-transform transform hover:scale-105">Войти</button>
+                    <button type="button" id="register-btn" class="w-full text-white bg-green-600 hover:bg-green-700 focus:ring-4 focus:outline-none focus:ring-green-500 font-medium rounded-lg text-sm px-5 py-3 text-center transition-transform transform hover:scale-105">Регистрация</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Основной игровой экран -->
+    <div id="game-screen" class="screen hidden fixed inset-0 flex flex-col justify-between">
+        <!-- Верхняя панель -->
+        <header class="w-full bg-gray-800/50 backdrop-blur-md border-b border-gray-700 p-4">
+            <div class="max-w-7xl mx-auto flex justify-between items-center">
+                <div>
+                    <span class="text-gray-400">Игрок:</span>
+                    <span id="welcome-username" class="font-bold text-indigo-400"></span>
+                </div>
+                <div>
+                    <span class="text-gray-400">Баланс:</span>
+                    <span id="balance-display" class="font-bold text-green-400 text-lg">0 $</span>
+                </div>
+                 <button id="logout-btn" class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-500 font-medium rounded-lg text-sm px-5 py-2 text-center transition">Выйти</button>
+            </div>
+        </header>
+
+        <main class="flex-grow p-4 sm:p-6 md:p-8 overflow-y-auto">
+            <div class="max-w-4xl mx-auto">
+                <!-- Контент вкладок -->
+                <div id="tab-content">
+                    <!-- Главная -->
+                    <div id="main-tab" class="tab-pane">
+                         <h1 class="text-3xl sm:text-4xl font-bold mb-4">Главное меню</h1>
+                        <div class="mt-8 p-6 bg-gray-800 border border-gray-700 rounded-xl">
+                            <h3 class="text-xl sm:text-2xl font-semibold mb-3">Информация об игре</h3>
+                            <p class="text-gray-300">Это экономический симулятор. Зарабатывайте деньги на работе, покупайте бизнесы и становитесь богаче!</p>
+                        </div>
+                    </div>
+                    <!-- Работа -->
+                    <div id="work-tab" class="tab-pane hidden">
+                        <h1 class="text-3xl sm:text-4xl font-bold mb-4">Работа</h1>
+                        <div class="mt-8 p-6 bg-gray-800 border border-gray-700 rounded-xl flex flex-col items-center">
+                            <h3 class="text-xl sm:text-2xl font-semibold mb-3">Подработка</h3>
+                            <p class="text-gray-300 text-center mb-6">Нажмите на кнопку, чтобы поработать и получить случайную сумму от 50 до 200 $. Работать можно раз в минуту.</p>
+                            <button id="work-btn" class="w-full max-w-xs text-white bg-green-600 hover:bg-green-700 focus:ring-4 focus:outline-none focus:ring-green-500 font-medium rounded-lg text-lg px-5 py-3 text-center transition-transform transform hover:scale-105 disabled:bg-gray-500 disabled:cursor-not-allowed">
+                                Работать
+                            </button>
+                            <p id="work-cooldown" class="mt-4 text-amber-400 h-6"></p>
+                        </div>
+                    </div>
+                    <!-- Бизнес -->
+                    <div id="business-tab" class="tab-pane hidden">
+                        <h1 class="text-3xl sm:text-4xl font-bold mb-4">Бизнесы</h1>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Мои бизнесы -->
+                            <div class="p-6 bg-gray-800 border border-gray-700 rounded-xl">
+                                <h3 class="text-xl sm:text-2xl font-semibold mb-4 border-b border-gray-600 pb-2">Мои бизнесы</h3>
+                                <div id="my-businesses-list" class="space-y-3">
+                                    <!-- Сюда будут добавляться купленные бизнесы -->
+                                    <p class="text-gray-400">У вас пока нет бизнесов.</p>
+                                </div>
+                                <button id="collect-income-btn" class="mt-6 w-full text-white bg-indigo-600 hover:bg-indigo-700 font-medium rounded-lg text-sm px-5 py-2.5 text-center transition disabled:bg-gray-500 disabled:cursor-not-allowed">Собрать весь доход</button>
+                            </div>
+                             <!-- Магазин бизнесов -->
+                            <div class="p-6 bg-gray-800 border border-gray-700 rounded-xl">
+                                <h3 class="text-xl sm:text-2xl font-semibold mb-4 border-b border-gray-600 pb-2">Купить бизнес</h3>
+                                <div id="available-businesses-list" class="space-y-3">
+                                     <!-- Сюда будут добавляться доступные бизнесы -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Нижняя панель навигации -->
+        <nav class="w-full bg-gray-800/70 backdrop-blur-md border-t border-gray-700 p-2">
+            <div class="max-w-4xl mx-auto flex justify-around items-center">
+                <button data-tab="main" class="nav-button active flex flex-col items-center text-gray-300 hover:text-white transition-all duration-300 p-2 rounded-lg w-24">
+                    <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                    <span class="text-xs sm:text-sm">Главная</span>
+                </button>
+                <button data-tab="work" class="nav-button flex flex-col items-center text-gray-300 hover:text-white transition-all duration-300 p-2 rounded-lg w-24">
+                    <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                    <span class="text-xs sm:text-sm">Работа</span>
+                </button>
+                <button data-tab="business" class="nav-button flex flex-col items-center text-gray-300 hover:text-white transition-all duration-300 p-2 rounded-lg w-24">
+                    <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                    <span class="text-xs sm:text-sm">Бизнес</span>
+                </button>
+            </div>
+        </nav>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // === DOM Elements ===
+    const loadingScreen = document.getElementById('loading-screen');
+    const authScreen = document.getElementById('auth-screen');
+    const gameScreen = document.getElementById('game-screen');
+    const notificationContainer = document.getElementById('notification-container');
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const loginBtn = document.getElementById('login-btn');
+    const registerBtn = document.getElementById('register-btn');
+    const logoutBtn = document.getElementById('logout-btn');
+    const welcomeUsername = document.getElementById('welcome-username');
+    const balanceDisplay = document.getElementById('balance-display');
+    const navButtons = document.querySelectorAll('.nav-button');
+    const tabPanes = document.querySelectorAll('.tab-pane');
+    const workBtn = document.getElementById('work-btn');
+    const workCooldownDisplay = document.getElementById('work-cooldown');
+    const availableBusinessesList = document.getElementById('available-businesses-list');
+    const myBusinessesList = document.getElementById('my-businesses-list');
+    const collectIncomeBtn = document.getElementById('collect-income-btn');
+
+
+    // === Game State ===
+    const API_URL = 'api/api.php';
+    let currentUser = null;
+    let playerData = {};
+    let availableBusinesses = [];
+    let workCooldownInterval;
+
+    // === Helper Functions ===
+    const showNotification = (message, type = 'info') => {
+        const colors = { success: 'bg-green-500', info: 'bg-blue-500', error: 'bg-red-500' };
+        const notification = document.createElement('div');
+        notification.className = `relative p-4 text-white rounded-lg shadow-lg overflow-hidden transform transition-all duration-300 translate-x-full opacity-0 ${colors[type]}`;
+        notification.innerHTML = `<p>${message}</p><div class="absolute bottom-0 left-0 h-1 bg-white bg-opacity-50 progress-bar-animate"></div>`;
+        notificationContainer.appendChild(notification);
+        setTimeout(() => notification.classList.remove('translate-x-full', 'opacity-0'), 10);
+        const remove = () => {
+            notification.classList.add('opacity-0', 'translate-x-full');
+            setTimeout(() => notification.remove(), 300);
+        };
+        notification.addEventListener('click', remove);
+        setTimeout(remove, 5000);
+    };
+
+    const apiRequest = async (action, data = {}) => {
+        try {
+            const response = await fetch(`${API_URL}?action=${action}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (!response.ok) throw new Error('Network error');
+            return await response.json();
+        } catch (error) {
+            console.error(`API Error on action ${action}:`, error);
+            showNotification('Ошибка связи с сервером.', 'error');
+            return { success: false, error: 'Ошибка сети' };
+        }
+    };
+    
+    // === UI Update Functions ===
+    const updateBalance = (newBalance) => {
+        playerData.balance = newBalance;
+        balanceDisplay.textContent = `${Math.floor(newBalance).toLocaleString('ru-RU')} $`;
+    };
+    
+    const updateUI = () => {
+        if (!playerData) return;
+        updateBalance(playerData.balance);
+        renderMyBusinesses();
+        renderAvailableBusinesses();
+        updateWorkButton();
+    };
+    
+    const renderAvailableBusinesses = () => {
+        availableBusinessesList.innerHTML = '';
+        if (availableBusinesses.length === 0) {
+            availableBusinessesList.innerHTML = '<p class="text-gray-400">Нет доступных бизнесов.</p>';
+            return;
+        }
+        availableBusinesses.forEach(biz => {
+            const isOwned = playerData.businesses.some(owned => owned.id === biz.id);
+            const canAfford = playerData.balance >= biz.cost;
+            const card = document.createElement('div');
+            card.className = 'p-3 bg-gray-700/50 rounded-lg border border-gray-600';
+            card.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <div>
+                        <p class="font-semibold">${biz.name}</p>
+                        <p class="text-sm text-green-400">Доход: ${biz.income_per_hour}/час</p>
+                        <p class="text-sm text-amber-400">Цена: ${biz.cost.toLocaleString('ru-RU')} $</p>
+                    </div>
+                    <button data-id="${biz.id}" class="buy-business-btn text-sm px-4 py-2 rounded-md transition ${isOwned ? 'bg-gray-500 cursor-not-allowed' : (canAfford ? 'bg-green-600 hover:bg-green-700' : 'bg-red-800 cursor-not-allowed')}" ${isOwned || !canAfford ? 'disabled' : ''}>
+                        ${isOwned ? 'Куплено' : 'Купить'}
+                    </button>
+                </div>
+            `;
+            availableBusinessesList.appendChild(card);
+        });
+        document.querySelectorAll('.buy-business-btn').forEach(btn => btn.addEventListener('click', handleBuyBusiness));
+    };
+
+    const renderMyBusinesses = () => {
+        myBusinessesList.innerHTML = '';
+        if (playerData.businesses.length === 0) {
+            myBusinessesList.innerHTML = '<p class="text-gray-400">У вас пока нет бизнесов.</p>';
+            collectIncomeBtn.disabled = true;
+            return;
+        }
+        
+        let totalIncomeToCollect = 0;
+
+        playerData.businesses.forEach(ownedBiz => {
+            const bizDetails = availableBusinesses.find(b => b.id === ownedBiz.id);
+            if (!bizDetails) return;
+            
+            const secondsPassed = Math.floor(Date.now() / 1000) - ownedBiz.last_collection_time;
+            const incomePerHour = bizDetails.income_per_hour;
+            const incomePerSecond = incomePerHour / 3600;
+            const accumulatedIncome = Math.floor(secondsPassed * incomePerSecond);
+            totalIncomeToCollect += accumulatedIncome;
+            
+            const card = document.createElement('div');
+            card.className = 'p-3 bg-gray-700/50 rounded-lg border border-gray-600';
+            card.innerHTML = `
+                <p class="font-semibold">${bizDetails.name}</p>
+                <p class="text-sm text-gray-300">Накоплено: <span class="text-green-400">${accumulatedIncome.toLocaleString('ru-RU')} $</span></p>
+            `;
+            myBusinessesList.appendChild(card);
+        });
+        
+        collectIncomeBtn.disabled = totalIncomeToCollect <= 0;
+    };
+    
+    const updateWorkButton = () => {
+        clearInterval(workCooldownInterval);
+        const cooldown = 60;
+        const now = Math.floor(Date.now() / 1000);
+        const timePassed = now - playerData.last_work_time;
+
+        if (timePassed < cooldown) {
+            workBtn.disabled = true;
+            let timeLeft = cooldown - timePassed;
+            workCooldownDisplay.textContent = `Подождите: ${timeLeft} сек.`;
+            workCooldownInterval = setInterval(() => {
+                timeLeft--;
+                if (timeLeft <= 0) {
+                    clearInterval(workCooldownInterval);
+                    workBtn.disabled = false;
+                    workCooldownDisplay.textContent = '';
+                } else {
+                    workCooldownDisplay.textContent = `Подождите: ${timeLeft} сек.`;
+                }
+            }, 1000);
+        } else {
+            workBtn.disabled = false;
+            workCooldownDisplay.textContent = '';
+        }
+    };
+    
+
+    // === API Logic Handlers ===
+    const register = async () => {
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value.trim();
+        if (!username || !password) return showNotification('Заполните все поля.', 'error');
+        
+        const result = await apiRequest('register', { username, password });
+        if (result.success) {
+            showNotification('Регистрация прошла успешно!', 'success');
+            usernameInput.value = '';
+            passwordInput.value = '';
+        } else {
+            showNotification(result.error || 'Ошибка регистрации.', 'error');
+        }
+    };
+
+    const login = async () => {
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value.trim();
+        if (!username || !password) return showNotification('Заполните все поля.', 'error');
+
+        const result = await apiRequest('login', { username, password });
+        if (result.success) {
+            showNotification(`Добро пожаловать, ${result.user.username}!`, 'success');
+            sessionStorage.setItem('currentUser', result.user.username);
+            await startGame(result.user.username);
+        } else {
+            showNotification(result.error || 'Неверные данные для входа.', 'error');
+        }
+    };
+
+    const logout = () => {
+        sessionStorage.removeItem('currentUser');
+        currentUser = null;
+        playerData = {};
+        gameScreen.classList.add('hidden');
+        authScreen.classList.remove('hidden');
+        showNotification('Вы вышли из аккаунта.', 'info');
+    };
+    
+    const handleWork = async () => {
+        workBtn.disabled = true;
+        const result = await apiRequest('work', { username: currentUser });
+        if (result.success) {
+            showNotification(result.message, 'success');
+            updateBalance(result.newBalance);
+            playerData.last_work_time = result.last_work_time;
+            updateWorkButton();
+        } else {
+            showNotification(result.error || 'Не удалось поработать.', 'error');
+            workBtn.disabled = false;
+        }
+    };
+
+    const handleBuyBusiness = async (event) => {
+        const businessId = event.target.dataset.id;
+        const result = await apiRequest('buyBusiness', { username: currentUser, businessId });
+        if (result.success) {
+            showNotification(result.message, 'success');
+            updateBalance(result.newBalance);
+            playerData.businesses.push(result.newBusiness);
+            updateUI();
+        } else {
+            showNotification(result.error || 'Не удалось купить бизнес.', 'error');
+        }
+    };
+    
+    const handleCollectIncome = async () => {
+        const result = await apiRequest('collectIncome', { username: currentUser });
+        if (result.success) {
+            showNotification(result.message, 'success');
+            updateBalance(result.newBalance);
+            playerData.businesses = result.updatedBusinesses;
+            updateUI();
+        } else {
+            showNotification(result.error || 'Нечего собирать.', 'info');
+        }
+    };
+    
+    // === Game Flow ===
+    const switchToGameScreen = () => {
+        welcomeUsername.textContent = currentUser;
+        authScreen.classList.add('hidden');
+        gameScreen.classList.remove('hidden');
+    };
+    
+    const startGame = async (username) => {
+        currentUser = username;
+        
+        // 1. Получаем данные игрока
+        const userDataResult = await apiRequest('getUserData', { username });
+        if (!userDataResult.success) {
+            showNotification('Не удалось загрузить данные игрока.', 'error');
+            logout();
+            return;
+        }
+        playerData = userDataResult.user;
+        
+        // 2. Получаем список доступных бизнесов
+        const businessesResult = await apiRequest('getBusinesses');
+        if (businessesResult.success) {
+            availableBusinesses = businessesResult.businesses;
+        }
+        
+        // 3. Отображаем игровой экран и интерфейс
+        switchToGameScreen();
+        updateUI();
+        
+        // 4. Запускаем периодическое обновление UI (например, для таймеров)
+        setInterval(renderMyBusinesses, 5000); // Обновлять накопленный доход каждые 5 секунд
+    };
+
+    const init = async () => {
+        const storedUser = sessionStorage.getItem('currentUser');
+        if (storedUser) {
+            await startGame(storedUser);
+        } else {
+            authScreen.classList.remove('hidden');
+        }
+        loadingScreen.classList.add('hidden');
+    };
+    
+    // === Event Listeners ===
+    registerBtn.addEventListener('click', register);
+    loginBtn.addEventListener('click', login);
+    logoutBtn.addEventListener('click', logout);
+    workBtn.addEventListener('click', handleWork);
+    collectIncomeBtn.addEventListener('click', handleCollectIncome);
+
+    navButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const targetTab = button.dataset.tab;
+            
+            navButtons.forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+            
+            tabPanes.forEach(pane => {
+                if (pane.id === `${targetTab}-tab`) {
+                    pane.classList.remove('hidden');
+                } else {
+                    pane.classList.add('hidden');
+                }
+            });
+        });
+    });
+
+    init();
+});
+</script>
+
+</body>
+</html>
